@@ -1,0 +1,49 @@
+{{- range $name, $svc := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: {{ $svc.serviceName }}
+    {{- include "microservices.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $svc.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.serviceName }}
+        {{- include "microservices.labels" $ | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $svc.serviceName }}
+          image: "{{ $svc.image.repository }}:{{ $svc.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ $svc.port }}
+          envFrom:
+            {{- if $svc.config }}
+            - configMapRef:
+                name: {{ $svc.serviceName }}-config
+            {{- end }}
+            {{- if $svc.needsDb }}
+            - secretRef:
+                name: db-credentials
+            {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ $svc.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+{{- end }}

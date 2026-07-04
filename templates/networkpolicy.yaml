@@ -1,0 +1,125 @@
+{{- if .Values.networkpolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkpolicy.dnsNamespace }}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.exposed }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-{{ $svc.serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels: {app: {{ $svc.serviceName }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkpolicy.ingressControllerNamespace }}
+      ports:
+        - {protocol: TCP, port: {{ $svc.port }}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-from-{{ $svc.serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels: {app: {{ $svc.serviceName }}}
+  policyTypes: [Egress]
+  egress:
+    {{- range $targetName, $targetSvc := $.Values.services }}
+    {{- if not $targetSvc.exposed }}
+    - to:
+        - podSelector:
+            matchLabels: {app: {{ $targetSvc.serviceName }}}
+      ports:
+        - {protocol: TCP, port: {{ $targetSvc.port }}}
+    {{- end }}
+    {{- end }}
+---
+{{- else }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-{{ $svc.serviceName }}
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels: {app: {{ $svc.serviceName }}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: gateway}
+      ports:
+        - {protocol: TCP, port: {{ $svc.port }}}
+---
+{{- if $svc.needsDb }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-from-{{ $svc.serviceName }}-to-db
+  namespace: {{ $.Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels: {app: {{ $svc.serviceName }}}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: db}
+      ports:
+        - {protocol: TCP, port: 5432}
+---
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.db.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-db
+  namespace: {{ .Values.global.namespace }}
+spec:
+  podSelector:
+    matchLabels: {app: db}
+  policyTypes: [Ingress]
+  ingress:
+    {{- range $name, $svc := .Values.services }}
+    {{- if $svc.needsDb }}
+    - from:
+        - podSelector:
+            matchLabels: {app: {{ $svc.serviceName }}}
+      ports:
+        - {protocol: TCP, port: 5432}
+    {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

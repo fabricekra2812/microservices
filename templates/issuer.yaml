@@ -1,0 +1,10 @@
+{{- if .Values.ingress.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.ingress.tls.issuerName }}
+  namespace: {{ .Values.global.namespace }}
+spec:
+  ca:
+    secretName: {{ .Values.ingress.tls.caSecretName }}
+{{- end }}

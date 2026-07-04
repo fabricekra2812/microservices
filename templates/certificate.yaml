@@ -1,0 +1,27 @@
+{{- if .Values.ingress.tls.enabled }}
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.exposed }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $name }}-tls
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    app: {{ $name }}
+    {{- include "microservices.labels" $ | nindent 4 }}
+spec:
+  secretName: {{ $.Values.ingress.tls.secretName }}
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  dnsNames:
+    - {{ $.Values.ingress.host }}
+  issuerRef:
+    name: {{ $.Values.ingress.tls.issuerName }}
+    kind: Issuer
+    group: cert-manager.io
+{{- end }}
+{{- end }}
+{{- end }}

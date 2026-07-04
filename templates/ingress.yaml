@@ -1,0 +1,34 @@
+{{- if .Values.ingress.enabled }}
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.exposed }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "microservices.labels" $ | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: {{ $.Values.ingress.className }}
+  {{- if $.Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $.Values.ingress.host }}
+      secretName: {{ $.Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ $.Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  number: {{ $svc.port }}
+{{- end }}
+{{- end }}
+{{- end }}
