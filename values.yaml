@@ -1,0 +1,112 @@
+global:
+  namespace: microservices   # imposé par les start.sh (FQDN codés en dur)
+
+ingress:
+  enabled: true
+  className: traefik
+  host: app.devops.local
+  tls:
+    enabled: true
+    secretName: microservices-tls
+    issuerName: internal-ca-issuer
+    caSecretName: internal-root-ca-secret
+
+networkpolicy:
+  enabled: true
+  ingressControllerNamespace: kube-system
+  dnsNamespace: kube-system
+
+# -----------------------------------------------------------------------
+# Base de données : un seul pod PostgreSQL, service nommé "db"
+# (nom imposé par tes start.sh : db.microservices.svc.cluster.local)
+# Les identifiants (POSTGRES_USER/PASSWORD/DB + DATABASE_URL) NE sont PAS
+# ici : ils viennent d'un Secret "db-credentials" créé manuellement.
+# -----------------------------------------------------------------------
+db:
+  enabled: true
+  image: postgres:16-alpine
+  storage: 1Gi
+
+services:
+  gateway:
+    serviceName: gateway
+    image:
+      repository: fabricekonan28/gateway-service
+      tag: "4"
+    port: 8000
+    replicas: 1
+    exposed: true
+    needsDb: false
+    resources:
+      requests: {cpu: 50m, memory: 64Mi}
+      limits: {cpu: 300m, memory: 256Mi}
+    config:
+      USERS_SERVICE_URL: "http://users-service:8001"
+      PRODUCTS_SERVICE_URL: "http://products-service:8002"
+      ORDERS_SERVICE_URL: "http://orders-service:8003"
+      LOG_LEVEL: "info"
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  users:
+    serviceName: users-service
+    image:
+      repository: fabricekonan28/users-service
+      tag: "43"
+    port: 8001
+    replicas: 1
+    exposed: false
+    needsDb: true
+    resources:
+      requests: {cpu: 30m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    config:
+      LOG_LEVEL: "info"
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 75
+
+  products:
+    serviceName: products-service
+    image:
+      repository: fabricekonan28/products-service
+      tag: "3"
+    port: 8002
+    replicas: 1
+    exposed: false
+    needsDb: true
+    resources:
+      requests: {cpu: 30m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    config:
+      LOG_LEVEL: "info"
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 75
+
+  orders:
+    serviceName: orders-service
+    image:
+      repository: fabricekonan28/orders-service
+      tag: "3"
+    port: 8003
+    replicas: 1
+    exposed: false
+    needsDb: true
+    resources:
+      requests: {cpu: 30m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    config:
+      LOG_LEVEL: "info"
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 75
