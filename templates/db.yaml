@@ -36,9 +36,6 @@ spec:
           image: {{ .Values.db.image }}
           ports:
             - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              value: {{ .Values.db.database | quote }}
           envFrom:
             - secretRef:
                 name: db-credentials   # créé manuellement, voir README
